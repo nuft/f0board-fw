@@ -2,6 +2,7 @@
 #include <hal.h>
 #include <chprintf.h>
 #include "mpu60X0.h"
+#include "shell_cmd.h"
 
 BaseSequentialStream *stdout;
 
@@ -142,6 +143,34 @@ static THD_FUNCTION(led_thread, arg) {
     return 0;
 }
 
+void cmd_mpu(BaseSequentialStream *chp, int argc, char *argv[])
+{
+    (void) argc;
+    (void) argv;
+    int i;
+    for (i = 0; i < 500; i++) {
+        chprintf(chp, "gyro: %5d %5d %5d acc: %5d %5d %5d t: %u\n",
+            mpu_gyro[0], mpu_gyro[1], mpu_gyro[2],
+            mpu_acc[0], mpu_acc[1], mpu_acc[2],
+            mpu_temp);
+        chThdSleepMilliseconds(10);
+    }
+}
+
+void cmd_reset(BaseSequentialStream *chp, int argc, char *argv[])
+{
+    (void) argc;
+    (void) argv;
+    NVIC_SystemReset();
+    return;
+}
+
+static const ShellCommand commands[] = {
+    {"mpu", cmd_mpu},
+    {"reset", cmd_reset},
+    {NULL, NULL}
+};
+
 int main(void) {
     halInit();
     chSysInit();
@@ -157,6 +186,6 @@ int main(void) {
 
     while (1) {
         chThdSleepMilliseconds(100);
-        chprintf(stdout, "%5d %5d\n", mpu_acc[0], mpu_gyro[0]);
+        shell_spawn(stdout, commands);
     }
 }
