@@ -76,7 +76,9 @@ CSRC = $(PORTSRC) \
        $(OSALSRC) \
        $(PLATFORMSRC) \
        $(BOARDSRC) \
-       src/main.c
+       $(CHIBIOS)/os/hal/lib/streams/chprintf.c
+
+CSRC += src/main.c src/mpu60X0.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
@@ -107,7 +109,8 @@ ASMSRC = $(PORTASM)
 
 INCDIR = $(PORTINC) $(KERNINC) $(TESTINC) \
          $(HALINC) $(OSALINC) $(PLATFORMINC) $(BOARDINC) \
-         $(CHIBIOS)/os/various src
+         $(CHIBIOS)/os/various $(CHIBIOS)/os/hal/lib/streams \
+         src
 
 #
 # Project, sources and paths
@@ -123,12 +126,9 @@ MCU  = cortex-m0
 TRGT = arm-none-eabi-
 CC   = $(TRGT)gcc
 CPPC = $(TRGT)g++
-# Enable loading with g++ only if you need C++ runtime support.
-# NOTE: You can use C++ even without C++ support if you are careful. C++
-#       runtime support makes code size explode.
 LD   = $(TRGT)gcc
 #LD   = $(TRGT)g++
-CP   = $(TRGT)objcopy
+CP   = $(TRGT)objcopy  -j startup -j constructors -j destructors -j .text -j .ARM.extab -j .ARM.exidx -j .eh_frame_hdr -j .eh_frame -j .textalign -j .data
 AS   = $(TRGT)gcc -x assembler-with-cpp
 AR   = $(TRGT)ar
 OD   = $(TRGT)objdump
