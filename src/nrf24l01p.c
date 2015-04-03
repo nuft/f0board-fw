@@ -124,6 +124,11 @@ void nrf24l01p_write_ack_payload(nrf24l01p_t *dev, uint8_t pipe, const uint8_t *
     nrf24l01p_command_write(dev, W_ACK_PAYLOAD | (pipe & 0x07), buf, len);
 }
 
+void nrf24l01p_reuse_tx_payload(nrf24l01p_t *dev)
+{
+    nrf24l01p_command(dev, REUSE_TX_PL);
+}
+
 void nrf24l01p_set_addr(nrf24l01p_t *dev, uint8_t reg, const uint8_t *addr, uint8_t len)
 {
     nrf24l01p_write_multibyte_register(dev, reg, addr, len);

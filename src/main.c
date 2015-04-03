@@ -3,11 +3,11 @@
 #include <chprintf.h>
 #include "mpu60X0.h"
 #include "shell_cmd.h"
+#include "radio.h"
+#include "main.h"
+#include <string.h>
 
 BaseSequentialStream *stdout;
-
-#define EXTI_EVENT_MPU6050_INT (1<<0)
-#define EXTI_EVENT_NRF_IRQ (1<<1)
 
 event_source_t exti_events;
 
@@ -75,6 +75,43 @@ static THD_FUNCTION(led_thread, arg) {
     return 0;
 }
 
+void rx(void)
+{
+    radio_rx_start();
+
+    struct radio_packet *pkt;
+    while (1) {
+        if (chMBFetch(&radio_rx_mailbox, (msg_t *)&pkt, MS2ST(1000)) != MSG_OK) {
+            continue;
+        }
+        uint32_t st = pkt->data[0]
+                    | (pkt->data[1] << 8)
+                    | (pkt->data[2] << 16)
+                    | (pkt->data[3] << 24);
+        chprintf(stdout, "st: %u\n", st);
+        chPoolFree(&radio_rx_pool, pkt);
+    }
+}
+
+void tx(void)
+{
+    radio_tx_start();
+
+    struct radio_packet *pkt;
+    while (1) {
+        pkt = chPoolAlloc(&radio_tx_pool);
+        if (pkt == NULL) {
+            chThdSleepMilliseconds(10);
+            continue;
+        }
+        uint32_t st = chVTGetSystemTime();
+        memcpy(pkt, &st, sizeof(st));
+        if (chMBPost(&radio_tx_mailbox, (msg_t)pkt, TIME_IMMEDIATE) != MSG_OK) {
+            chPoolFree(&radio_rx_pool, pkt);
+        }
+    }
+}
+
 int main(void) {
     halInit();
     chSysInit();
@@ -87,7 +124,10 @@ int main(void) {
 
     exti_setup();
 
-    while (1) {
-        chThdSleepMilliseconds(100);
-    }
+    chprintf(stdout, "radio start\n");
+
+    // rx();
+    tx();
+
+    while (1);
 }
