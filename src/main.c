@@ -75,6 +75,17 @@ static THD_FUNCTION(led_thread, arg) {
     return 0;
 }
 
+void panic_hook(const char *reason) {
+    (void)reason;
+    while (1) {
+        int i;
+        for (i = 0; i < 500000; i++) {
+            __asm__ volatile ("nop":::);
+        }
+        palTogglePad(GPIOB, GPIOB_LED);
+    }
+}
+
 void rx(void)
 {
     radio_rx_start();
