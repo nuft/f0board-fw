@@ -79,7 +79,7 @@ CSRC = $(PORTSRC) \
        $(CHIBIOS)/os/hal/lib/streams/chprintf.c \
        $(CHIBIOS)/os/various/shell.c
 
-CSRC += src/main.c src/mpu60X0.c src/shell_cmd.c
+CSRC += src/main.c src/mpu60X0.c src/shell_cmd.c src/sensors.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
