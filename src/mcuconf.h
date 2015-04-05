@@ -55,6 +55,7 @@
 #define STM32_MCOSEL                        STM32_MCOSEL_NOCLOCK
 #define STM32_ADCPRE                        STM32_ADCPRE_DIV4
 #define STM32_ADCSW                         STM32_ADCSW_HSI14
+#define STM32_USBSW                         STM32_USBSW_PCLK
 #define STM32_CECSW                         STM32_CECSW_HSI
 #define STM32_I2C1SW                        STM32_I2C1SW_SYSCLK
 #define STM32_USART1SW                      STM32_USART1SW_PCLK
@@ -151,5 +152,13 @@
 #define STM32_UART_USART1_DMA_PRIORITY      0
 #define STM32_UART_USART2_DMA_PRIORITY      0
 #define STM32_UART_DMA_ERROR_HOOK(uartp)    osalSysHalt("DMA failure")
+
+/*
+ * USB driver system settings.
+ */
+#define STM32_USB_USE_USB1                  TRUE
+#define STM32_USB_LOW_POWER_ON_SUSPEND      FALSE
+#define STM32_USB_USB1_HP_IRQ_PRIORITY      3
+#define STM32_USB_USB1_LP_IRQ_PRIORITY      3
 
 #endif /* _MCUCONF_H_ */

@@ -141,8 +141,8 @@
                                      PIN_MODE_INPUT(GPIOA_PIN8) |           \
                                      PIN_MODE_ALTERNATE(GPIOA_UART1_TX) |   \
                                      PIN_MODE_ALTERNATE(GPIOA_UART1_RX) |   \
-                                     PIN_MODE_ALTERNATE(GPIOA_OTG_FS_DM) |  \
-                                     PIN_MODE_ALTERNATE(GPIOA_OTG_FS_DP) |  \
+                                     PIN_MODE_INPUT(GPIOA_OTG_FS_DM) |  \
+                                     PIN_MODE_INPUT(GPIOA_OTG_FS_DP) |  \
                                      PIN_MODE_ALTERNATE(GPIOA_SWDIO) |      \
                                      PIN_MODE_ALTERNATE(GPIOA_SWCLK) |      \
                                      PIN_MODE_INPUT(GPIOA_PIN15))
@@ -221,8 +221,8 @@
 #define VAL_GPIOA_AFRH              (PIN_AFIO_AF(GPIOA_PIN8, 0) |           \
                                      PIN_AFIO_AF(GPIOA_UART1_TX, 1) |       \
                                      PIN_AFIO_AF(GPIOA_UART1_RX, 1) |       \
-                                     PIN_AFIO_AF(GPIOA_OTG_FS_DM, 10) |     \
-                                     PIN_AFIO_AF(GPIOA_OTG_FS_DP, 10) |     \
+                                     PIN_AFIO_AF(GPIOA_OTG_FS_DM, 0) |     \
+                                     PIN_AFIO_AF(GPIOA_OTG_FS_DP, 0) |     \
                                      PIN_AFIO_AF(GPIOA_SWDIO, 0) |          \
                                      PIN_AFIO_AF(GPIOA_SWCLK, 0) |          \
                                      PIN_AFIO_AF(GPIOA_PIN15, 0))

@@ -2,6 +2,7 @@
 #include <hal.h>
 #include <chprintf.h>
 #include "shell_cmd.h"
+#include "usbcfg.h"
 
 BaseSequentialStream *stdout;
 
@@ -33,6 +34,37 @@ void panic_hook(const char *reason) {
     }
 }
 
+void cmd_reset(BaseSequentialStream *chp, int argc, char *argv[])
+{
+    (void) argc;
+    (void) argv;
+    (void) chp;
+    NVIC_SystemReset();
+    return;
+}
+
+static const ShellCommand commands[] = {
+    {"reset", cmd_reset},
+    {NULL, NULL}
+};
+
+SerialUSBDriver SDU1;
+
+static BaseSequentialStream *usb_cdc_init(void)
+{
+    // USB CDC
+    sduObjectInit(&SDU1);
+    sduStart(&SDU1, &serusbcfg);
+    // usbDisconnectBus(serusbcfg.usbp);
+    chThdSleepMilliseconds(1000);
+    usbStart(serusbcfg.usbp, &usbcfg);
+    // usbConnectBus(serusbcfg.usbp);
+    while (SDU1.config->usbp->state != USB_ACTIVE) {
+        chThdSleepMilliseconds(10);
+    }
+    return (BaseSequentialStream *) &SDU1;
+}
+
 int main(void) {
     halInit();
     chSysInit();
@@ -43,7 +75,12 @@ int main(void) {
 
     chThdCreateStatic(led_thread_wa, sizeof(led_thread_wa), NORMALPRIO, led_thread, NULL);
 
+    BaseSequentialStream *stream;
+    stream = usb_cdc_init();
+
     while (1) {
-        chThdSleepMilliseconds(100);
+        // shell_spawn(stdout, commands);
+        chprintf(stream, "hello world\n");
+        chThdSleepMilliseconds(1000);
     }
 }
