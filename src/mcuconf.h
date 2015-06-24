@@ -48,8 +48,8 @@
 #define STM32_PLLSRC                        STM32_PLLSRC_HSE
 #define STM32_PREDIV_VALUE                  4
 #define STM32_PLLMUL_VALUE                  12
-#define STM32_HPRE                          STM32_HPRE_DIV1
-#define STM32_PPRE                          STM32_PPRE_DIV1
+#define STM32_HPRE                          STM32_HPRE_DIV1     // 48 MHz
+#define STM32_PPRE                          STM32_PPRE_DIV1     // 48 MHz
 #define STM32_ADCSW                         STM32_ADCSW_HSI14
 #define STM32_ADCPRE                        STM32_ADCPRE_DIV4
 #define STM32_MCOSEL                        STM32_MCOSEL_NOCLOCK
@@ -151,5 +151,11 @@
 #define STM32_UART_USART1_DMA_PRIORITY      0
 #define STM32_UART_USART2_DMA_PRIORITY      0
 #define STM32_UART_DMA_ERROR_HOOK(uartp)    osalSysHalt("DMA failure")
+
+/*
+ * CAN
+ */
+#define STM32_CAN_USE_CAN1                  TRUE
+#define STM32_CAN_CAN1_IRQ_PRIORITY         11
 
 #endif /* _MCUCONF_H_ */
