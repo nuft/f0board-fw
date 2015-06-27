@@ -17,6 +17,8 @@
 #include "ch.h"
 #include "hal.h"
 
+SerialUSBDriver SDU1;
+
 /*
  * Endpoints to be used for USBD1.
  */
@@ -229,7 +231,7 @@ static const USBEndpointConfig ep1config = {
   0x0040,
   &ep1instate,
   &ep1outstate,
-  2,
+  1,
   NULL
 };
 

@@ -1,6 +1,7 @@
 #include <ch.h>
 #include <hal.h>
 #include <chprintf.h>
+#include <shell.h>
 #include "shell_cmd.h"
 #include "usbcfg.h"
 #include "main.h"
@@ -33,35 +34,16 @@ void panic_hook(const char *reason) {
     }
 }
 
-void cmd_reset(BaseSequentialStream *chp, int argc, char *argv[])
-{
-    (void) argc;
-    (void) argv;
-    (void) chp;
-    NVIC_SystemReset();
-    return;
-}
-
-static const ShellCommand commands[] = {
-    {"reset", cmd_reset},
-    {NULL, NULL}
-};
-
-SerialUSBDriver SDU1;
-
-static BaseSequentialStream *usb_cdc_init(void)
+void usb_cdc_init(void)
 {
     // USB CDC
     sduObjectInit(&SDU1);
     sduStart(&SDU1, &serusbcfg);
-    // usbDisconnectBus(serusbcfg.usbp);
-    chThdSleepMilliseconds(1000);
+
+    usbDisconnectBus(serusbcfg.usbp);
+    chThdSleepMilliseconds(1500);
     usbStart(serusbcfg.usbp, &usbcfg);
-    // usbConnectBus(serusbcfg.usbp);
-    while (SDU1.config->usbp->state != USB_ACTIVE) {
-        chThdSleepMilliseconds(10);
-    }
-    return (BaseSequentialStream *) &SDU1;
+    usbConnectBus(serusbcfg.usbp);
 }
 
 int main(void) {
@@ -70,12 +52,22 @@ int main(void) {
 
     chThdCreateStatic(led_thread_wa, sizeof(led_thread_wa), NORMALPRIO, led_thread, NULL);
 
-    BaseSequentialStream *stream;
-    stream = usb_cdc_init();
+    usb_cdc_init();
 
-    while (1) {
-        // shell_spawn(stdout, commands);
-        chprintf(stream, "hello world\n");
-        chThdSleepMilliseconds(1000);
+    shellInit();
+    static thread_t *shelltp = NULL;
+    static ShellConfig shell_cfg;
+    shell_cfg.sc_channel = (BaseSequentialStream*)&SDU1;
+    shell_cfg.sc_commands = shell_commands;
+    while (true) {
+        if (!shelltp) {
+            if (SDU1.config->usbp->state == USB_ACTIVE) {
+                shelltp = shellCreate(&shell_cfg, THD_WORKING_AREA_SIZE(2048), NORMALPRIO);
+            }
+        } else if (chThdTerminatedX(shelltp)) {
+            chThdRelease(shelltp);
+            shelltp = NULL;
+        }
+        chThdSleepMilliseconds(500);
     }
 }

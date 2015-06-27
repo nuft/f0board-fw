@@ -5,10 +5,8 @@
 extern "C" {
 #endif
 
-#include <ch.h>
 #include <shell.h>
-
-void shell_spawn(BaseSequentialStream *stream, const ShellCommand *commands);
+extern const ShellCommand shell_commands[];
 
 #ifdef __cplusplus
 }
