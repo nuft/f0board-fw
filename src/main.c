@@ -3,8 +3,7 @@
 #include <chprintf.h>
 #include "shell_cmd.h"
 #include "usbcfg.h"
-
-BaseSequentialStream *stdout;
+#include "main.h"
 
 static THD_WORKING_AREA(led_thread_wa, 128);
 static THD_FUNCTION(led_thread, arg) {
@@ -20,7 +19,7 @@ static THD_FUNCTION(led_thread, arg) {
         palClearPad(GPIOB, GPIOB_LED);
         chThdSleepMilliseconds(760);
     }
-    return 0;
+   return 0;
 }
 
 void panic_hook(const char *reason) {
@@ -68,10 +67,6 @@ static BaseSequentialStream *usb_cdc_init(void)
 int main(void) {
     halInit();
     chSysInit();
-
-    sdStart(&SD1, NULL);
-    stdout = (BaseSequentialStream*)&SD1;
-    chprintf(stdout, "\n> start\n");
 
     chThdCreateStatic(led_thread_wa, sizeof(led_thread_wa), NORMALPRIO, led_thread, NULL);
 
