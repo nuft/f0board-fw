@@ -69,7 +69,7 @@ LDSCRIPT= STM32F042x6.ld
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
-CSRC = $(PORTSRC) \
+CSRC += $(PORTSRC) \
        $(KERNSRC) \
        $(TESTSRC) \
        $(HALSRC) \
@@ -80,6 +80,7 @@ CSRC = $(PORTSRC) \
        $(CHIBIOS)/os/various/shell.c
 
 CSRC += src/main.c src/usbcfg.c src/shell_cmd.c
+CSRC += src/stm32f0_can_lld.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
@@ -108,7 +109,7 @@ TCPPSRC =
 # List ASM source files here
 ASMSRC = $(PORTASM)
 
-INCDIR = $(PORTINC) $(KERNINC) $(TESTINC) \
+INCDIR = $(PORTINC) $(KERNINC) \
          $(HALINC) $(OSALINC) $(PLATFORMINC) $(BOARDINC) \
          $(CHIBIOS)/os/various $(CHIBIOS)/os/hal/lib/streams \
          src
