@@ -32,9 +32,6 @@ void panic_hook(const char *reason) {
     }
 }
 
-SerialUSBDriver SDU1;
-SerialUSBDriver SDU2;
-
 int main(void) {
     halInit();
     chSysInit();
@@ -43,12 +40,10 @@ int main(void) {
 
     exti_setup();
 
-#if 0
+#if 1
     // USB CDC
     sduObjectInit(&SDU1);
     sduStart(&SDU1, &serusbcfg1);
-    sduObjectInit(&SDU2);
-    sduStart(&SDU2, &serusbcfg2);
     usbDisconnectBus(serusbcfg1.usbp);
     chThdSleepMilliseconds(1500);
     usbStart(serusbcfg1.usbp, &usbcfg);
@@ -60,22 +55,8 @@ int main(void) {
     BaseChannel *arg = (BaseChannel *)&SDU1;
     radio_start_rx(arg);
 #else
-    // USB CDC
-    sduObjectInit(&SDU1);
-    sduStart(&SDU1, &serusbcfg1);
-    sduObjectInit(&SDU2);
-    sduStart(&SDU2, &serusbcfg2);
-    usbDisconnectBus(serusbcfg1.usbp);
-    chThdSleepMilliseconds(1500);
-    usbStart(serusbcfg1.usbp, &usbcfg);
-    usbConnectBus(serusbcfg1.usbp);
-
-    while (SDU1.config->usbp->state != USB_ACTIVE) {
-        chThdSleepMilliseconds(10);
-    }
-    BaseChannel *arg = (BaseChannel *)&SDU1;
-    // BaseChannel *arg = (BaseChannel *)&SD1;
-    // sdStart(&SD1, NULL);
+    BaseChannel *arg = (BaseChannel *)&SD1;
+    sdStart(&SD1, NULL);
     radio_start_tx(arg);
 #endif
 
