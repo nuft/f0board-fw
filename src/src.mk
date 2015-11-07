@@ -7,4 +7,5 @@ CSRC += src/radio_port.c
 CSRC += src/nrf24l01p.c
 CSRC += src/datagram_packer.c
 CSRC += src/crc/crc16.c
+CSRC += src/crc/crc32.c
 CSRC += src/serial-datagram/serial_datagram.c
