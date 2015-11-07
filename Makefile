@@ -56,12 +56,12 @@ PROJECT = ch
 
 # Imported source files and paths
 CHIBIOS = ChibiOS
-include $(CHIBIOS)/os/hal/hal.mk
+include $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC/mk/startup_stm32f0xx.mk
 include $(CHIBIOS)/os/hal/ports/STM32/STM32F0xx/platform.mk
 include $(CHIBIOS)/os/hal/osal/rt/osal.mk
+include $(CHIBIOS)/os/hal/hal.mk
+include $(CHIBIOS)/os/rt/ports/ARMCMx/compilers/GCC/mk/port_v6m.mk
 include $(CHIBIOS)/os/rt/rt.mk
-include $(CHIBIOS)/os/rt/ports/ARMCMx/compilers/GCC/mk/port_stm32f0xx.mk
-# include $(CHIBIOS)/test/rt/test.mk
 include board/board.mk
 
 # Define linker script file here
@@ -76,11 +76,11 @@ CSRC += $(PORTSRC) \
        $(OSALSRC) \
        $(PLATFORMSRC) \
        $(BOARDSRC) \
+       $(STARTUPSRC) \
        $(CHIBIOS)/os/hal/lib/streams/chprintf.c \
        $(CHIBIOS)/os/various/shell.c
 
-CSRC += src/main.c src/usbcfg.c
-CSRC += src/stm32f0_can_lld.c
+include src/src.mk
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
@@ -107,9 +107,9 @@ TCSRC =
 TCPPSRC =
 
 # List ASM source files here
-ASMSRC = $(PORTASM)
+ASMSRC = $(PORTASM) $(OSALASM) $(STARTUPASM)
 
-INCDIR = $(PORTINC) $(KERNINC) \
+INCDIR = $(PORTINC) $(KERNINC) $(STARTUPINC) \
          $(HALINC) $(OSALINC) $(PLATFORMINC) $(BOARDINC) \
          $(CHIBIOS)/os/various $(CHIBIOS)/os/hal/lib/streams \
          src
@@ -134,6 +134,7 @@ CP   = $(TRGT)objcopy  -j startup -j constructors -j destructors -j .text -j .AR
 AS   = $(TRGT)gcc -x assembler-with-cpp
 AR   = $(TRGT)ar
 OD   = $(TRGT)objdump
+NM   = $(TRGT)nm
 SZ   = $(TRGT)size
 HEX  = $(CP) -O ihex
 BIN  = $(CP) -O binary
@@ -178,7 +179,10 @@ ULIBS =
 # End of user defines
 ##############################################################################
 
-RULESPATH = $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC
+GLOBAL_SRC_DEP = src/src.mk
+
+# RULESPATH = $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC
+RULESPATH = .
 include $(RULESPATH)/rules.mk
 
 .PHONY: flash
