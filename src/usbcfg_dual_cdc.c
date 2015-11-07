@@ -388,12 +388,13 @@ static const USBEndpointConfig ep4config = {
   NULL
 };
 
+SerialUSBDriver SDU1;
+SerialUSBDriver SDU2;
+
 /*
  * Handles the USB driver global events.
  */
 static void usb_event(USBDriver *usbp, usbevent_t event) {
-  extern SerialUSBDriver SDU1, SDU2;
-
   switch (event) {
   case USB_EVENT_RESET:
     return;
