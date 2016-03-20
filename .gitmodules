@@ -1,3 +1,9 @@
 [submodule "ChibiOS"]
 	path = ChibiOS
 	url = https://github.com/nuft/ChibiOS.git
+[submodule "src/timestamp"]
+	path = src/timestamp
+	url = https://github.com/Stapelzeiger/timestamp.git
+[submodule "src/libcanard"]
+	path = src/libcanard
+	url = https://github.com/UAVCAN/libcanard.git

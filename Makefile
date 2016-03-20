@@ -79,7 +79,8 @@ CSRC += $(PORTSRC) \
        $(CHIBIOS)/os/hal/lib/streams/chprintf.c \
        $(CHIBIOS)/os/various/shell.c
 
-CSRC += src/main.c src/usbcfg.c
+CSRC += src/main.c src/usbcfg.c src/libcanard/src/canard.c
+CSRC += src/timestamp/timestamp.c src/timestamp/timestamp_stm32.c
 CSRC += src/stm32f0_can_lld.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
@@ -112,7 +113,7 @@ ASMSRC = $(PORTASM)
 INCDIR = $(PORTINC) $(KERNINC) \
          $(HALINC) $(OSALINC) $(PLATFORMINC) $(BOARDINC) \
          $(CHIBIOS)/os/various $(CHIBIOS)/os/hal/lib/streams \
-         src
+         src src/libcanard/src src/timestamp
 
 #
 # Project, sources and paths
