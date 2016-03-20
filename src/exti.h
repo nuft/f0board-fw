@@ -12,6 +12,8 @@ extern "C" {
 
 extern event_source_t exti_events;
 
+void exti_setup(void);
+
 #ifdef __cplusplus
 }
 #endif

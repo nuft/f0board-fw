@@ -8,6 +8,7 @@
 #include <timestamp/timestamp_stm32.h>
 #include <arm-cortex-tools/fault.h>
 #include "radio.h"
+#include "exti.h"
 #include "main.h"
 
 BaseSequentialStream *stdout = NULL;
@@ -390,6 +391,7 @@ int main(void) {
     chSysInit();
     timestamp_stm32_init();
     fault_init();
+    exti_setup();
 
     palSetPad(GPIOB, GPIOB_LED);
 

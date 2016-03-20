@@ -27,6 +27,9 @@ extern BaseSequentialStream *stdout;
 
 static void nrf_setup_ptx(nrf24l01p_t *dev)
 {
+    // time to boot up
+    chThdSleepMilliseconds(300);
+
     SPIDriver *spi = spi_init();
     nrf24l01p_init(dev, spi);
 
@@ -76,14 +79,16 @@ static THD_FUNCTION(radio_thread_tx, arg)
         if (palReadPad(GPIOA, GPIOA_PIN0) == 0) {
             // Button pressed
             memcpy(packet, &magic_value, 4);
+            palSetPad(GPIOB, GPIOB_LED);
         } else {
             memset(packet, 0, 4);
+            palClearPad(GPIOB, GPIOB_LED);
         }
         // clear interrupts
         nrf24l01p_write_register(nrf, STATUS, RX_DR | TX_DS | MAX_RT);
         nrf24l01p_write_tx_payload(nrf, packet, 4);
         nrf_ce_active();
-        eventmask_t ret = chEvtWaitAnyTimeout(NRF_INTERRUPT_EVENT, MS2ST(100));
+        eventmask_t ret = chEvtWaitAnyTimeout(NRF_INTERRUPT_EVENT, MS2ST(50));
         nrf_ce_inactive();
         if (ret == 0) {
             nrf24l01p_flush_tx(nrf);
@@ -109,6 +114,9 @@ static THD_FUNCTION(radio_thread_tx, arg)
 
 static void nrf_setup_prx(nrf24l01p_t *dev)
 {
+    // time to boot up
+    chThdSleepMilliseconds(300);
+
     SPIDriver *spi = spi_init();
     nrf24l01p_init(dev, spi);
 
@@ -163,7 +171,7 @@ static THD_FUNCTION(radio_thread_rx, arg)
         static uint8_t packet[32];
         nrf24l01p_write_ack_payload(nrf, 0, packet, 1);
         nrf24l01p_write_register(nrf, STATUS, RX_DR | TX_DS | MAX_RT);
-        eventmask_t ret = chEvtWaitAnyTimeout(NRF_INTERRUPT_EVENT, MS2ST(200));
+        eventmask_t ret = chEvtWaitAnyTimeout(NRF_INTERRUPT_EVENT, MS2ST(100));
         if (ret == 0) {
             emergency_stop();
             nrf24l01p_flush_rx(nrf);
@@ -179,7 +187,10 @@ static THD_FUNCTION(radio_thread_rx, arg)
             nrf24l01p_read_rx_payload(nrf, packet, len);
 
             if (len == 4 && memcmp(packet, &magic_value, 4) == 0) {
+                palSetPad(GPIOB, GPIOB_LED);
                 emergency_stop();
+            } else {
+                palClearPad(GPIOB, GPIOB_LED);
             }
         } else {
             nrf24l01p_flush_rx(nrf);
