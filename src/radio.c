@@ -68,6 +68,7 @@ static const uint32_t magic_value = 0xDEAD;
 
 static THD_FUNCTION(radio_thread_tx, arg)
 {
+    (void)arg;
     nrf24l01p_t *nrf = &nrf24;
     nrf_setup_ptx(nrf);
 
@@ -105,6 +106,7 @@ static THD_FUNCTION(radio_thread_tx, arg)
         }
         chThdSleepMilliseconds(10);
     }
+    return 0;
 }
 
 static void nrf_setup_prx(nrf24l01p_t *dev)
@@ -160,6 +162,7 @@ extern void emergency_stop(void);
 
 static THD_FUNCTION(radio_thread_rx, arg)
 {
+    (void)arg;
     nrf24l01p_t *nrf = &nrf24;
     nrf_setup_prx(nrf);
     nrf_ce_active();
@@ -189,6 +192,7 @@ static THD_FUNCTION(radio_thread_rx, arg)
             nrf24l01p_flush_rx(nrf);
         }
     }
+    return 0;
 }
 
 void radio_start_rx(void *arg)

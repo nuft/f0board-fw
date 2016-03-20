@@ -6,6 +6,7 @@
 #include <libcanard/src/canard.h>
 #include <timestamp/timestamp.h>
 #include <timestamp/timestamp_stm32.h>
+#include <arm-cortex-tools/fault.h>
 #include "radio.h"
 #include "main.h"
 
@@ -483,6 +484,10 @@ void on_reception(CanardInstance* ins, CanardRxTransfer* transfer)
 bool should_accept(const CanardInstance* ins, uint64_t* out_data_type_signature,
                    uint16_t data_type_id, CanardTransferType transfer_type, uint8_t source_node_id)
 {
+    (void) ins;
+    (void) data_type_id;
+    (void) transfer_type;
+    (void) source_node_id;
     *out_data_type_signature = 0x8899AABBCCDDEEFF;
     return true;
 }
@@ -515,9 +520,7 @@ void emergency_stop(void)
 void send_thread(void* canard_instance) {
     enum node_health health = HEALTH_OK;
     uint64_t last_node_status = 0;
-    uint64_t last_multi = 0;
     uint64_t last_clean = 0;
-    uint64_t last_request = 0;
     while (1)
     {
         if ((get_monotonic_usec() - last_node_status) > TIME_TO_SEND_NODE_STATUS)
@@ -537,7 +540,7 @@ void send_thread(void* canard_instance) {
             static const uint16_t data_type_id = 20000;
             static uint8_t transfer_id;
             uint64_t data_type_signature = 0x1BC3E116412312B3ULL;
-            return canardBroadcast(canard_instance, data_type_signature, data_type_id, &transfer_id, PRIORITY_HIGH, payload, 0);
+            canardBroadcast(canard_instance, data_type_signature, data_type_id, &transfer_id, PRIORITY_HIGH, payload, 0);
         }
         const CanardCANFrame* transmit_frame = canardPeekTxQueue(canard_instance);
         if (transmit_frame != NULL) {
@@ -554,7 +557,7 @@ void fault_printf(const char *fmt, ...)
     (void) fmt;
 }
 
-#define TRANSMITTER 1
+static const int TRANSMITTER = 1;
 
 int main(void) {
     halInit();
@@ -580,24 +583,24 @@ int main(void) {
     sdStart(&SD1, NULL);
     stdout = (BaseSequentialStream *) &SD1;
 
-#if TRANSMITTER
-    radio_start_tx(NULL);
-#else
-    can_init();
+    if (TRANSMITTER) {
+        radio_start_tx(NULL);
+    } else {
+        can_init();
 
-    static CanardInstance canard_instance;
-    static CanardPoolAllocatorBlock buffer[32];           // pool blocks
-    uavcan_node_id = 3;
-    canardInit(&canard_instance, buffer, sizeof(buffer), on_reception, should_accept);
-    canardSetLocalNodeID(&canard_instance, uavcan_node_id);
-    printf("Initialized.\n");
+        static CanardInstance canard_instance;
+        static CanardPoolAllocatorBlock buffer[32];           // pool blocks
+        uavcan_node_id = 3;
+        canardInit(&canard_instance, buffer, sizeof(buffer), on_reception, should_accept);
+        canardSetLocalNodeID(&canard_instance, uavcan_node_id);
+        printf("Initialized.\n");
 
-    chThdCreateStatic(can_rx_thread, sizeof(can_rx_thread), NORMALPRIO+1, can_rx_thread_main, NULL);
-    chThdCreateStatic(receive_thread, sizeof(receive_thread), NORMALPRIO+1, can_rx_thread_main, NULL);
-    radio_start_rx(NULL);
+        chThdCreateStatic(can_rx_thread, sizeof(can_rx_thread), NORMALPRIO+1, can_rx_thread_main, NULL);
+        chThdCreateStatic(receive_thread, sizeof(receive_thread), NORMALPRIO+1, can_rx_thread_main, NULL);
+        radio_start_rx(NULL);
 
-    send_thread(&canard_instance);
-#endif
+        send_thread(&canard_instance);
+    }
 
     while (1) {
        chThdSleepMilliseconds(100);
