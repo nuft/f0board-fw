@@ -544,10 +544,16 @@ void send_thread(void* canard_instance) {
     }
 }
 
+void fault_printf(const char *fmt, ...)
+{
+    (void) fmt;
+}
+
 int main(void) {
     halInit();
     chSysInit();
     timestamp_stm32_init();
+    fault_init();
 
     chThdCreateStatic(led_thread, sizeof(led_thread), NORMALPRIO, led_thread_main, NULL);
 
