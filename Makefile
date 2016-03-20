@@ -82,6 +82,7 @@ CSRC += $(PORTSRC) \
 CSRC += src/main.c src/usbcfg.c src/libcanard/src/canard.c
 CSRC += src/timestamp/timestamp.c src/timestamp/timestamp_stm32.c
 CSRC += src/stm32f0_can_lld.c src/arm-cortex-tools/fault.c
+CSRC += src/nrf24l01p.c src/radio.c src/radio_port.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.

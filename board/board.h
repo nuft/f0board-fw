@@ -113,7 +113,7 @@
 /*
  * GPIOA setup:
  *
- * PA0  - PIN0                      (input pulldown).
+ * PA0  - PIN0                      (input pullup).
  * PA1  - PIN1                      (input pulldown).
  * PA2  - PIN2                      (input pulldown).
  * PA3  - NRF_CE                    (output low).
@@ -178,7 +178,7 @@
                                      PIN_OSPEED_40M(GPIOA_SWDIO) |          \
                                      PIN_OSPEED_40M(GPIOA_SWCLK) |          \
                                      PIN_OSPEED_40M(GPIOA_PIN15))
-#define VAL_GPIOA_PUPDR             (PIN_PUPDR_PULLDOWN(GPIOA_PIN0) |       \
+#define VAL_GPIOA_PUPDR             (PIN_PUPDR_PULLUP(GPIOA_PIN0) |       \
                                      PIN_PUPDR_PULLDOWN(GPIOA_PIN1) |       \
                                      PIN_PUPDR_PULLDOWN(GPIOA_PIN2) |       \
                                      PIN_PUPDR_FLOATING(GPIOA_NRF_CE) |     \

@@ -6,6 +6,7 @@
 #include <libcanard/src/canard.h>
 #include <timestamp/timestamp.h>
 #include <timestamp/timestamp_stm32.h>
+#include "radio.h"
 #include "main.h"
 
 BaseSequentialStream *stdout = NULL;
@@ -230,9 +231,9 @@ void can_init(void)
 
 #define CLEANUP_STALE_TRANSFERS 2000000
 
-#define TIME_TO_SEND_NODE_STATUS 101000000
-#define TIME_TO_SEND_MULTI 1000000
-#define TIME_TO_SEND_REQUEST 1000000
+#define TIME_TO_SEND_NODE_STATUS 1000000
+#define TIME_TO_SEND_MULTI 6000000
+#define TIME_TO_SEND_REQUEST 5000000
 
 static uint8_t uavcan_node_id;
 
@@ -286,7 +287,7 @@ enum node_mode
 int publish_node_status(CanardInstance* ins, enum node_health health, enum node_mode mode,
                         uint16_t vendor_specific_status_code)
 {
-    static uint64_t startup_timestamp_usec;
+    static uint64_t startup_timestamp_usec = 0;
     if (startup_timestamp_usec == 0)
     {
         startup_timestamp_usec = get_monotonic_usec();
@@ -504,6 +505,13 @@ THD_FUNCTION(receive_thread_main, canard_instance)
     }
 }
 
+static volatile bool send_emergency_stop = false;
+
+void emergency_stop(void)
+{
+    send_emergency_stop = true;
+}
+
 void send_thread(void* canard_instance) {
     enum node_health health = HEALTH_OK;
     uint64_t last_node_status = 0;
@@ -518,28 +526,25 @@ void send_thread(void* canard_instance) {
             publish_node_status(canard_instance, health, MODE_OPERATIONAL, vendor_specific_status_code);
             last_node_status = get_monotonic_usec();
         }
-        if ((get_monotonic_usec() - last_multi) > TIME_TO_SEND_MULTI)
-        {
-            publish_multi(canard_instance);
-            last_multi = get_monotonic_usec();
-        }
-        if ((get_monotonic_usec() - last_request) > TIME_TO_SEND_REQUEST)
-        {
-            publish_request(canard_instance);
-            last_request = get_monotonic_usec();
-        }
         if ((get_monotonic_usec() - last_clean) > CLEANUP_STALE_TRANSFERS)
         {
             canardCleanupStaleTransfers(canard_instance, get_monotonic_usec());
             last_clean = get_monotonic_usec();
         }
+        if (send_emergency_stop) {
+            send_emergency_stop = false;
+            uint8_t payload[7];
+            static const uint16_t data_type_id = 20000;
+            static uint8_t transfer_id;
+            uint64_t data_type_signature = 0x1BC3E116412312B3ULL;
+            return canardBroadcast(canard_instance, data_type_signature, data_type_id, &transfer_id, PRIORITY_HIGH, payload, 0);
+        }
         const CanardCANFrame* transmit_frame = canardPeekTxQueue(canard_instance);
-        if (transmit_frame != NULL)
-        {
-            // printf("send\n");
-            // printframe(transmit_frame);
+        if (transmit_frame != NULL) {
             can_send(transmit_frame->id, transmit_frame->data, transmit_frame->data_len);
             canardPopTxQueue(canard_instance);
+        } else {
+            chThdSleepMilliseconds(1);
         }
     }
 }
@@ -548,6 +553,8 @@ void fault_printf(const char *fmt, ...)
 {
     (void) fmt;
 }
+
+#define TRANSMITTER 1
 
 int main(void) {
     halInit();
@@ -573,9 +580,11 @@ int main(void) {
     sdStart(&SD1, NULL);
     stdout = (BaseSequentialStream *) &SD1;
 
+#if TRANSMITTER
+    radio_start_tx(NULL);
+#else
     can_init();
 
-    // enum node_health health = HEALTH_OK;
     static CanardInstance canard_instance;
     static CanardPoolAllocatorBlock buffer[32];           // pool blocks
     uavcan_node_id = 3;
@@ -585,8 +594,11 @@ int main(void) {
 
     chThdCreateStatic(can_rx_thread, sizeof(can_rx_thread), NORMALPRIO+1, can_rx_thread_main, NULL);
     chThdCreateStatic(receive_thread, sizeof(receive_thread), NORMALPRIO+1, can_rx_thread_main, NULL);
+    radio_start_rx(NULL);
 
     send_thread(&canard_instance);
+#endif
+
     while (1) {
        chThdSleepMilliseconds(100);
     }
