@@ -1,17 +1,13 @@
 
 #include <ch.h>
 #include <hal.h>
-#include "exit.h"
+#include "exti.h"
 
 event_source_t exti_events;
 
 static void gpio_exti_callback(EXTDriver *extp, expchannel_t channel) {
     (void)extp;
-    if (channel == GPIOB_MPU_INT) {
-        chSysLockFromISR();
-        chEvtBroadcastFlagsI(&exti_events, EXTI_EVENT_MPU6050_INT);
-        chSysUnlockFromISR();
-    } else if (channel == GPIOB_NRF_INT) {
+    if (channel == GPIOB_NRF_INT) {
         chSysLockFromISR();
         chEvtBroadcastFlagsI(&exti_events, EXTI_EVENT_NRF_IRQ);
         chSysUnlockFromISR();
@@ -19,8 +15,7 @@ static void gpio_exti_callback(EXTDriver *extp, expchannel_t channel) {
 }
 
 static const EXTConfig extcfg = {{
-    // GPIOB_MPU_INT, PB0
-    {EXT_CH_MODE_RISING_EDGE | EXT_CH_MODE_AUTOSTART | EXT_MODE_GPIOB, gpio_exti_callback},
+    {EXT_CH_MODE_DISABLED, NULL}, // 0
     // GPIOB_NRF_INT, PB1
     {EXT_CH_MODE_FALLING_EDGE | EXT_CH_MODE_AUTOSTART | EXT_MODE_GPIOB, gpio_exti_callback},
     {EXT_CH_MODE_DISABLED, NULL}, // 2
