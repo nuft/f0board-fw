@@ -7,7 +7,6 @@
 #include "radio.h"
 #include "exti.h"
 #include <chprintf.h>
-#include <serial-datagram/serial_datagram.h>
 
 #define NRF_INTERRUPT_EVENT 1
 
@@ -19,7 +18,6 @@ event_listener_t radio_event_listener;
 
 static nrf24l01p_t nrf24;
 static THD_WORKING_AREA(radio_thread_wa, 512);
-uint8_t datagram_buffer[100];
 
 SPIDriver *spi_init(void);
 void nrf_ce_active(void);
@@ -151,11 +149,6 @@ void _sd_send_fn(void *arg, const void *p, size_t len)
         return;
     }
     chSequentialStreamWrite((BaseSequentialStream*)arg, (const uint8_t*)p, len);
-}
-
-void datagram_cb(void *dg, size_t len, void *arg)
-{
-    serial_datagram_send(dg, len, _sd_send_fn, arg);
 }
 
 extern void emergency_stop(void);

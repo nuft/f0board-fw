@@ -24,24 +24,6 @@ static inline int printf(const char *fmt, ...)
   return formatted_bytes;
 }
 
-static THD_WORKING_AREA(led_thread, 128);
-static THD_FUNCTION(led_thread_main, arg)
-{
-    (void)arg;
-    chRegSetThreadName("LED");
-    while (1) {
-        palSetPad(GPIOB, GPIOB_LED);
-        chThdSleepMilliseconds(80);
-        palClearPad(GPIOB, GPIOB_LED);
-        chThdSleepMilliseconds(80);
-        palSetPad(GPIOB, GPIOB_LED);
-        chThdSleepMilliseconds(80);
-        palClearPad(GPIOB, GPIOB_LED);
-        chThdSleepMilliseconds(760);
-    }
-   return 0;
-}
-
 void panic_hook(const char *reason) {
     (void)reason;
     while (1) {
@@ -51,156 +33,6 @@ void panic_hook(const char *reason) {
         }
         palTogglePad(GPIOB, GPIOB_LED);
     }
-}
-
-#define CAN_FRAME_STD_ID_MASK    ((1<<11) - 1)
-#define CAN_FRAME_EXT_ID_MASK    ((1<<29) - 1)
-#define CAN_FRAME_EXT_FLAG       (1<<29)
-#define CAN_FRAME_RTR_FLAG       (1<<30)
-
-/** id bit layout:
- * [0-28]:  29 bit extended id
- * ([0-10]:  11 bit basic id)
- * [29]:    extended frame flag
- * [30]:    remote transmission request flag
- * [31]:    unused, set to 0
- */
-
-struct can_frame {
-    uint32_t id;
-    uint8_t dlc;
-    union {
-        uint8_t u8[8];
-        uint16_t u16[4];
-        uint32_t u32[2];
-    } data;
-};
-
-#define CAN_RX_QUEUE_SIZE   8
-#define CAN_TX_QUEUE_SIZE   8
-
-memory_pool_t can_rx_pool;
-mailbox_t can_rx_queue;
-msg_t rx_mbox_buf[CAN_RX_QUEUE_SIZE];
-struct can_frame rx_pool_buf[CAN_RX_QUEUE_SIZE];
-
-static THD_WORKING_AREA(can_rx_thread, 256);
-static THD_FUNCTION(can_rx_thread_main, arg)
-{
-    (void)arg;
-    chRegSetThreadName("CAN rx");
-    while (1) {
-        uint32_t id;
-        CANRxFrame rxf;
-        msg_t m = canReceive(&CAND1, CAN_ANY_MAILBOX, &rxf, MS2ST(1000));
-        if (m != MSG_OK) {
-            continue;
-        }
-        if (rxf.IDE) {
-            id = rxf.EID | CAN_FRAME_EXT_FLAG;
-        } else {
-            id = rxf.SID;
-        }
-        if (rxf.RTR) {
-            id |= CAN_FRAME_RTR_FLAG;
-        }
-        struct can_frame *f = (struct can_frame *)chPoolAlloc(&can_rx_pool);
-        if (f == NULL) {
-            continue;
-        }
-        f->id = id;
-        f->dlc = rxf.DLC;
-        f->data.u32[0] = rxf.data32[0];
-        f->data.u32[1] = rxf.data32[1];
-        if (chMBPost(&can_rx_queue, (msg_t)f, TIME_IMMEDIATE) != MSG_OK) {
-            // couldn't post message: drop data & free the memory
-            chPoolFree(&can_rx_pool, f);
-        }
-    }
-    return 0;
-}
-
-const char *hex4_table = "0123456789ABCDEF";
-bool use_timestamps = false;
-
-static char _hex4(const uint8_t b)
-{
-    return hex4_table[b & 0x0f];
-}
-
-void print_can_frame(BaseSequentialStream *out, struct can_frame *f)
-{
-    static unsigned char buf[100];
-    unsigned char *p = &buf[0];
-    int i;
-    uint32_t id = f->id;
-    bool extended, remote_frame;
-
-    if (id & CAN_FRAME_RTR_FLAG) {
-        remote_frame = true;
-    } else {
-        remote_frame = false;
-    }
-
-    if (id & CAN_FRAME_EXT_FLAG) {
-        extended = true;
-        id = id & CAN_FRAME_EXT_ID_MASK;
-    } else {
-        extended = false;
-        id = id & CAN_FRAME_STD_ID_MASK;
-    }
-
-    // type
-    if (remote_frame) {
-        if (extended) {
-            *p++ = 'R';
-        } else {
-            *p++ = 'r';
-        }
-    } else {
-        if (extended) {
-            *p++ = 'T';
-        } else {
-            *p++ = 't';
-        }
-    }
-
-    // ID
-    if (extended) {
-        for (i = 3; i > 0; i--) {
-            *p++ = _hex4(id>>(8*i + 4));
-            *p++ = _hex4(id>>(8*i));
-        }
-    } else {
-        *p++ = _hex4(id>>8);
-        *p++ = _hex4(id>>4);
-        *p++ = _hex4(id);
-    }
-
-    // DLC
-    *p++ = _hex4(f->dlc);
-
-    // data
-    if (!remote_frame) {
-        for (i = 0; i < f->dlc; i++) {
-            *p++ = _hex4(f->data.u8[i]>>4);
-            *p++ = _hex4(f->data.u8[i]);
-        }
-    }
-
-    // timestamp
-    if (use_timestamps) {
-        uint16_t timestamp = 42;
-        *p++ = _hex4(timestamp>>12);
-        *p++ = _hex4(timestamp>>8);
-        *p++ = _hex4(timestamp>>4);
-        *p++ = _hex4(timestamp);
-    }
-
-    *p++ = '\r';
-
-    size_t len = (size_t)p - (size_t)&buf[0];
-    chSequentialStreamWrite(out, buf, len);
 }
 
 static const CANConfig can1_config = {
@@ -219,11 +51,6 @@ static const CANConfig can1_config = {
 
 void can_init(void)
 {
-    // rx queue
-    chMBObjectInit(&can_rx_queue, rx_mbox_buf, CAN_RX_QUEUE_SIZE);
-    chPoolObjectInit(&can_rx_pool, sizeof(struct can_frame), NULL);
-    chPoolLoadArray(&can_rx_pool, rx_pool_buf, sizeof(rx_pool_buf)/sizeof(struct can_frame));
-
     canStart(&CAND1, &can1_config);
     // todo: filter
     // canSTM32SetFilters(uint32_t can2sb, uint32_t num, const CANFilter *cfp);
@@ -244,7 +71,7 @@ int can_send(uint32_t extended_can_id, const uint8_t* frame_data, uint8_t frame_
         return -1;
     }
     CANTxFrame txf;
-    txf.EID = extended_can_id & CAN_FRAME_EXT_ID_MASK;
+    txf.EID = extended_can_id;
     txf.IDE = 1;
     txf.RTR = 0;
     txf.DLC = frame_data_len;
@@ -497,16 +324,15 @@ THD_FUNCTION(receive_thread_main, canard_instance)
 {
     CanardCANFrame canard_frame;
     while (1){
-        struct can_frame *framep;
-        msg_t m = chMBFetch(&can_rx_queue, (msg_t *)&framep, MS2ST(100));
-        if (m != MSG_OK) {
+        CANRxFrame rxf;
+        msg_t m = canReceive(&CAND1, CAN_ANY_MAILBOX, &rxf, MS2ST(1000));
+        if (m != MSG_OK || !rxf.IDE || rxf.RTR) {
             continue;
         }
-        canard_frame.id = framep->id;
-        canard_frame.data_len = framep->dlc;
-        memcpy(canard_frame.data, framep->data.u8, framep->dlc);
+        canard_frame.id = rxf.EID;
+        canard_frame.data_len = rxf.DLC;
+        memcpy(canard_frame.data, &rxf.data8[0], rxf.DLC);
         canardHandleRxFrame(canard_instance, &canard_frame, get_monotonic_usec());
-        chPoolFree(&can_rx_pool, framep);
     }
 }
 
@@ -557,7 +383,7 @@ void fault_printf(const char *fmt, ...)
     (void) fmt;
 }
 
-static const int TRANSMITTER = 1;
+static const int TRANSMITTER = 0;
 
 int main(void) {
     halInit();
@@ -565,7 +391,7 @@ int main(void) {
     timestamp_stm32_init();
     fault_init();
 
-    chThdCreateStatic(led_thread, sizeof(led_thread), NORMALPRIO, led_thread_main, NULL);
+    palSetPad(GPIOB, GPIOB_LED);
 
     // // USB CDC
     // sduObjectInit(&SDU1);
@@ -589,20 +415,19 @@ int main(void) {
         can_init();
 
         static CanardInstance canard_instance;
-        static CanardPoolAllocatorBlock buffer[32];           // pool blocks
+        static CanardPoolAllocatorBlock buffer[16];           // pool blocks
         uavcan_node_id = 3;
         canardInit(&canard_instance, buffer, sizeof(buffer), on_reception, should_accept);
         canardSetLocalNodeID(&canard_instance, uavcan_node_id);
         printf("Initialized.\n");
 
-        chThdCreateStatic(can_rx_thread, sizeof(can_rx_thread), NORMALPRIO+1, can_rx_thread_main, NULL);
-        chThdCreateStatic(receive_thread, sizeof(receive_thread), NORMALPRIO+1, can_rx_thread_main, NULL);
+        chThdCreateStatic(receive_thread, sizeof(receive_thread), NORMALPRIO+1, receive_thread_main, NULL);
         radio_start_rx(NULL);
 
         send_thread(&canard_instance);
     }
 
     while (1) {
-       chThdSleepMilliseconds(100);
+        chThdSleepMilliseconds(100);
     }
 }
