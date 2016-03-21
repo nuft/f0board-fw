@@ -324,7 +324,7 @@ THD_WORKING_AREA(receive_thread, 512);
 THD_FUNCTION(receive_thread_main, canard_instance)
 {
     CanardCANFrame canard_frame;
-    while (1){
+    while (1) {
         CANRxFrame rxf;
         msg_t m = canReceive(&CAND1, CAN_ANY_MAILBOX, &rxf, MS2ST(1000));
         if (m != MSG_OK || !rxf.IDE || rxf.RTR) {
@@ -350,12 +350,12 @@ void send_thread(void* canard_instance) {
     uint64_t last_clean = 0;
     while (1)
     {
-        if ((get_monotonic_usec() - last_node_status) > TIME_TO_SEND_NODE_STATUS)
-        {
-            const uint16_t vendor_specific_status_code = rand(); // Can be used to report vendor-specific status info
-            publish_node_status(canard_instance, health, MODE_OPERATIONAL, vendor_specific_status_code);
-            last_node_status = get_monotonic_usec();
-        }
+        // if ((get_monotonic_usec() - last_node_status) > TIME_TO_SEND_NODE_STATUS)
+        // {
+        //     const uint16_t vendor_specific_status_code = rand(); // Can be used to report vendor-specific status info
+        //     publish_node_status(canard_instance, health, MODE_OPERATIONAL, vendor_specific_status_code);
+        //     last_node_status = get_monotonic_usec();
+        // }
         if ((get_monotonic_usec() - last_clean) > CLEANUP_STALE_TRANSFERS)
         {
             canardCleanupStaleTransfers(canard_instance, get_monotonic_usec());
@@ -423,7 +423,7 @@ int main(void) {
         canardSetLocalNodeID(&canard_instance, uavcan_node_id);
         printf("Initialized.\n");
 
-        chThdCreateStatic(receive_thread, sizeof(receive_thread), NORMALPRIO+1, receive_thread_main, NULL);
+        // chThdCreateStatic(receive_thread, sizeof(receive_thread), NORMALPRIO+1, receive_thread_main, NULL);
         radio_start_rx(NULL);
 
         send_thread(&canard_instance);
