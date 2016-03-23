@@ -76,7 +76,7 @@ static THD_FUNCTION(radio_thread_tx, arg)
     size_t len;
     static uint8_t packet[32];
     while (1) {
-        if (palReadPad(GPIOA, GPIOA_PIN0) == 0) {
+        if (palReadPad(GPIOA, GPIOA_PIN0) != 0) {
             // Button pressed
             memcpy(packet, &magic_value, 4);
             palSetPad(GPIOB, GPIOB_LED);
