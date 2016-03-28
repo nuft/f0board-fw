@@ -6,9 +6,9 @@
 #include <libcanard/src/canard.h>
 #include <timestamp/timestamp.h>
 #include <timestamp/timestamp_stm32.h>
-#include <arm-cortex-tools/fault.h>
-#include "radio.h"
 #include "exti.h"
+#include "mpu60X0.h"
+#include "mpu60X0_registers.h"
 #include "main.h"
 
 BaseSequentialStream *stdout = NULL;
@@ -25,7 +25,13 @@ static inline int printf(const char *fmt, ...)
   return formatted_bytes;
 }
 
-void panic_hook(const char *reason) {
+void HardFault_Handler(void)
+{
+    chSysHalt("HardFault");
+}
+
+void panic_hook(const char *reason)
+{
     (void)reason;
     while (1) {
         int i;
@@ -321,8 +327,9 @@ bool should_accept(const CanardInstance* ins, uint64_t* out_data_type_signature,
 }
 
 THD_WORKING_AREA(receive_thread, 512);
-THD_FUNCTION(receive_thread_main, canard_instance)
+THD_FUNCTION(receive_thread_main, arg)
 {
+    CanardInstance *canard_instance = (CanardInstance *)arg;
     CanardCANFrame canard_frame;
     while (1) {
         CANRxFrame rxf;
@@ -337,37 +344,36 @@ THD_FUNCTION(receive_thread_main, canard_instance)
     }
 }
 
-static volatile bool send_emergency_stop = false;
-
-void emergency_stop(void)
+bool imu_sample_update = false;
+float imu_sample[6];
+THD_WORKING_AREA(send_thread, 512);
+THD_FUNCTION(send_thread_main, arg)
 {
-    send_emergency_stop = true;
-}
-
-void send_thread(void* canard_instance) {
-    enum node_health health = HEALTH_OK;
+    CanardInstance *canard_instance = (CanardInstance *)arg;
     uint64_t last_node_status = 0;
     uint64_t last_clean = 0;
-    while (1)
-    {
-        // if ((get_monotonic_usec() - last_node_status) > TIME_TO_SEND_NODE_STATUS)
-        // {
-        //     const uint16_t vendor_specific_status_code = rand(); // Can be used to report vendor-specific status info
-        //     publish_node_status(canard_instance, health, MODE_OPERATIONAL, vendor_specific_status_code);
-        //     last_node_status = get_monotonic_usec();
-        // }
+    while (1) {
+        if ((get_monotonic_usec() - last_node_status) > TIME_TO_SEND_NODE_STATUS) {
+            enum node_health health = HEALTH_OK;
+            const uint16_t vendor_specific_status_code = rand(); // Can be used to report vendor-specific status info
+            publish_node_status(canard_instance, health, MODE_OPERATIONAL, vendor_specific_status_code);
+            last_node_status = get_monotonic_usec();
+        }
+        if (imu_sample_update) {
+            static uint8_t payload[6*sizeof(float)];
+            chSysLock();
+            memcpy(payload, imu_sample, sizeof(imu_sample));
+            imu_sample_update = false;
+            chSysUnlock();
+            static const uint16_t data_type_id = 20200;
+            static uint8_t transfer_id;
+            uint64_t data_type_signature = 0x15C4382BF7ED7695ULL;
+            canardBroadcast(canard_instance, data_type_signature, data_type_id, &transfer_id, PRIORITY_HIGH, payload, sizeof(payload));
+        }
         if ((get_monotonic_usec() - last_clean) > CLEANUP_STALE_TRANSFERS)
         {
             canardCleanupStaleTransfers(canard_instance, get_monotonic_usec());
             last_clean = get_monotonic_usec();
-        }
-        if (send_emergency_stop) {
-            send_emergency_stop = false;
-            uint8_t payload[7];
-            static const uint16_t data_type_id = 20000;
-            static uint8_t transfer_id;
-            uint64_t data_type_signature = 0x1BC3E116412312B3ULL;
-            canardBroadcast(canard_instance, data_type_signature, data_type_id, &transfer_id, PRIORITY_HIGH, payload, 0);
         }
         const CanardCANFrame* transmit_frame = canardPeekTxQueue(canard_instance);
         if (transmit_frame != NULL) {
@@ -384,13 +390,89 @@ void fault_printf(const char *fmt, ...)
     (void) fmt;
 }
 
-static const int TRANSMITTER = 0;
+#define EXTI_INTERRUPT_EVENT    1
+
+static THD_WORKING_AREA(imu_thread, 256);
+THD_FUNCTION(imu_thread_main, arg)
+{
+    (void) arg;
+    palClearPad(GPIOA, GPIOA_MPU_PWR);
+    chThdSleepMilliseconds(100); // power cycle
+    palSetPad(GPIOA, GPIOA_MPU_PWR);
+    chThdSleepMilliseconds(500);
+
+    I2CDriver *i2c_driver = &I2CD1;
+    static const I2CConfig i2c_cfg = {
+        .cr1 = 0,
+        .cr2 = 0,
+        // took from reference manual rev7 p.640 example settings
+        // PRESC 5, SCLDEL 0x3, SDADEL 0x3, SCLH 0x3, SCLL 0x3
+        .timingr = (5<<28) | (0x3<<20) | (0x3<<16) | (0x3<<8) | (0x9<<0)
+    };
+    i2cStart(i2c_driver, &i2c_cfg);
+
+    static mpu60X0_t mpu;
+    mpu60X0_init_using_i2c(&mpu, i2c_driver, 0);
+
+    i2cAcquireBus(i2c_driver);
+    bool ok = false;
+    if (mpu60X0_ping(&mpu)) {
+        int config = MPU60X0_LOW_PASS_FILTER_6 | MPU60X0_SAMPLE_RATE_DIV(0);
+        config |= MPU60X0_ACC_FULL_RANGE_2G;
+        config |= MPU60X0_GYRO_FULL_RANGE_250DPS;
+        mpu60X0_setup(&mpu, config);
+        // check that the sensor still pings
+        if (mpu60X0_ping(&mpu)) {
+            ok = true;
+        }
+    }
+    i2cReleaseBus(i2c_driver);
+
+    if (!ok) {
+        chSysHalt("mpu60x0 init failed");
+    }
+    printf("IMU initialized\n");
+
+    static event_listener_t mpu_int_listener;
+    chEvtRegisterMaskWithFlags(&exti_events, &mpu_int_listener,
+                               (eventmask_t)EXTI_INTERRUPT_EVENT,
+                               (eventflags_t)EXTI_EVENT_MPU6050_INT);
+
+    while (1) {
+        chEvtWaitAnyTimeout(EXTI_INTERRUPT_EVENT, OSAL_MS2ST(100));
+        eventflags_t event_flag = chEvtGetAndClearFlags(&mpu_int_listener);
+        if (event_flag & EXTI_EVENT_MPU6050_INT) {
+            palSetPad(GPIOB, GPIOB_LED);
+
+            static float gyro[3], acc[3], temp;
+            i2cAcquireBus(i2c_driver);
+            mpu60X0_read(&mpu, gyro, acc, &temp);
+            i2cReleaseBus(i2c_driver);
+
+            chSysLock();
+                imu_sample[0] = gyro[0];
+                imu_sample[1] = gyro[1];
+                imu_sample[2] = gyro[2];
+                imu_sample[3] = acc[0];
+                imu_sample[4] = acc[1];
+                imu_sample[5] = acc[2];
+                imu_sample_update = true;
+            chSysUnlock();
+            // printf("IMU %d\n", (int)(1000*gyro[0]));
+
+            palClearPad(GPIOB, GPIOB_LED);
+        } else {
+            chSysHalt("IMU timeout\n");
+        }
+
+        chThdSleepMilliseconds(10);
+    }
+}
 
 int main(void) {
     halInit();
     chSysInit();
     timestamp_stm32_init();
-    fault_init();
     exti_setup();
 
     palSetPad(GPIOB, GPIOB_LED);
@@ -411,23 +493,19 @@ int main(void) {
     sdStart(&SD1, NULL);
     stdout = (BaseSequentialStream *) &SD1;
 
-    if (TRANSMITTER) {
-        radio_start_tx(NULL);
-    } else {
-        can_init();
+    chThdCreateStatic(imu_thread, sizeof(imu_thread), NORMALPRIO, imu_thread_main, NULL);
 
-        static CanardInstance canard_instance;
-        static CanardPoolAllocatorBlock buffer[16];           // pool blocks
-        uavcan_node_id = 3;
-        canardInit(&canard_instance, buffer, sizeof(buffer), on_reception, should_accept);
-        canardSetLocalNodeID(&canard_instance, uavcan_node_id);
-        printf("Initialized.\n");
+    can_init();
+    static CanardInstance canard_instance;
+    static CanardPoolAllocatorBlock buffer[16];           // pool blocks
+    uavcan_node_id = 80;
+    canardInit(&canard_instance, buffer, sizeof(buffer), on_reception, should_accept);
+    canardSetLocalNodeID(&canard_instance, uavcan_node_id);
+    printf("Initialized.\n");
 
-        // chThdCreateStatic(receive_thread, sizeof(receive_thread), NORMALPRIO+1, receive_thread_main, NULL);
-        radio_start_rx(NULL);
-
-        send_thread(&canard_instance);
-    }
+    send_thread_main(&canard_instance);
+    // chThdCreateStatic(send_thread, sizeof(send_thread), NORMALPRIO+1, send_thread_main, &canard_instance);
+    // chThdCreateStatic(recevie_thread, sizeof(recevie_thread), NORMALPRIO, recevie_thread_main, &canard_instance);
 
     while (1) {
         chThdSleepMilliseconds(100);

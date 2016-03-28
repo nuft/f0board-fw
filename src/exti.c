@@ -7,17 +7,17 @@ event_source_t exti_events;
 
 static void gpio_exti_callback(EXTDriver *extp, expchannel_t channel) {
     (void)extp;
-    if (channel == GPIOB_NRF_INT) {
+    if (channel == GPIOA_MPU_INT) {
         chSysLockFromISR();
-        chEvtBroadcastFlagsI(&exti_events, EXTI_EVENT_NRF_IRQ);
+        chEvtBroadcastFlagsI(&exti_events, EXTI_EVENT_MPU6050_INT);
         chSysUnlockFromISR();
     }
 }
 
 static const EXTConfig extcfg = {{
-    {EXT_CH_MODE_DISABLED, NULL}, // 0
-    // GPIOB_NRF_INT, PB1
-    {EXT_CH_MODE_FALLING_EDGE | EXT_CH_MODE_AUTOSTART | EXT_MODE_GPIOB, gpio_exti_callback},
+    // GPIOA_MPU_INT, PA0
+    {EXT_CH_MODE_RISING_EDGE | EXT_CH_MODE_AUTOSTART | EXT_MODE_GPIOA, gpio_exti_callback},
+    {EXT_CH_MODE_DISABLED, NULL}, // 1
     {EXT_CH_MODE_DISABLED, NULL}, // 2
     {EXT_CH_MODE_DISABLED, NULL}, // 3
     {EXT_CH_MODE_DISABLED, NULL}, // 4

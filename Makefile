@@ -82,7 +82,7 @@ CSRC += $(PORTSRC) \
 CSRC += src/main.c src/usbcfg.c src/libcanard/src/canard.c
 CSRC += src/timestamp/timestamp.c src/timestamp/timestamp_stm32.c
 CSRC += src/stm32f0_can_lld.c src/arm-cortex-tools/fault.c
-CSRC += src/nrf24l01p.c src/radio.c src/radio_port.c src/exti.c
+CSRC += src/mpu60X0.c src/exti.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
@@ -109,7 +109,7 @@ TCSRC =
 TCPPSRC =
 
 # List ASM source files here
-ASMSRC = $(PORTASM) src/arm-cortex-tools/fault_v6m.s
+ASMSRC = $(PORTASM)
 
 INCDIR = $(PORTINC) $(KERNINC) \
          $(HALINC) $(OSALINC) $(PLATFORMINC) $(BOARDINC) \
