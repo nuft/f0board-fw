@@ -10,6 +10,7 @@
 #include "radio.h"
 #include "exti.h"
 #include "main.h"
+#include "can_datagram.h"
 
 BaseSequentialStream *stdout = NULL;
 
@@ -338,6 +339,13 @@ THD_FUNCTION(receive_thread_main, canard_instance)
 }
 
 static volatile bool send_emergency_stop = false;
+static volatile bool send_reboot_command = false;
+
+uint8_t dest_nodes[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127};
+extern void reboot_all(void)
+{
+    send_reboot_command = true;
+}
 
 void emergency_stop(void)
 {
@@ -345,21 +353,43 @@ void emergency_stop(void)
 }
 
 void send_thread(void* canard_instance) {
-    enum node_health health = HEALTH_OK;
-    uint64_t last_node_status = 0;
     uint64_t last_clean = 0;
     while (1)
     {
-        // if ((get_monotonic_usec() - last_node_status) > TIME_TO_SEND_NODE_STATUS)
-        // {
-        //     const uint16_t vendor_specific_status_code = rand(); // Can be used to report vendor-specific status info
-        //     publish_node_status(canard_instance, health, MODE_OPERATIONAL, vendor_specific_status_code);
-        //     last_node_status = get_monotonic_usec();
-        // }
         if ((get_monotonic_usec() - last_clean) > CLEANUP_STALE_TRANSFERS)
         {
             canardCleanupStaleTransfers(canard_instance, get_monotonic_usec());
             last_clean = get_monotonic_usec();
+        }
+        if (send_reboot_command) {
+            // send bootloader reboot command
+            send_reboot_command = false;
+            can_datagram_t dt;
+            uint8_t datagram[] = {0x02, 0x01, 0x90}; // MessagePack: version, command, [args ...]
+            can_datagram_init(&dt);
+            can_datagram_set_address_buffer(&dt, dest_nodes);
+            can_datagram_set_data_buffer(&dt, datagram, sizeof(datagram));
+            dt.destination_nodes_len = sizeof(dest_nodes);
+            dt.data_len = sizeof(datagram);
+            dt.crc = can_datagram_compute_crc(&dt);
+
+            CANTxFrame txf;
+            const uint8_t source_id = 0;
+            bool start_of_datagram = true;
+            while (true) {
+                txf.DLC = can_datagram_output_bytes(&dt, (char *)txf.data8, 8);
+                if (txf.DLC == 0) {
+                    break;
+                }
+                txf.IDE = 0;
+                txf.RTR = 0;
+                txf.SID = source_id;
+                if (start_of_datagram) {
+                    txf.SID = source_id | ID_START_MASK;
+                    start_of_datagram = false;
+                }
+                canTransmit(&CAND1, CAN_ANY_MAILBOX, &txf, MS2ST(100));
+            }
         }
         if (send_emergency_stop) {
             send_emergency_stop = false;
@@ -390,23 +420,10 @@ int main(void) {
     halInit();
     chSysInit();
     timestamp_stm32_init();
-    fault_init();
+    // fault_init();
     exti_setup();
 
     palSetPad(GPIOB, GPIOB_LED);
-
-    // // USB CDC
-    // sduObjectInit(&SDU1);
-    // sduStart(&SDU1, &serusbcfg);
-
-    // usbDisconnectBus(serusbcfg.usbp);
-    // chThdSleepMilliseconds(1500);
-    // usbStart(serusbcfg.usbp, &usbcfg);
-    // usbConnectBus(serusbcfg.usbp);
-
-    // while (SDU1.config->usbp->state != USB_ACTIVE) {
-    //     chThdSleepMilliseconds(10);
-    // }
 
     sdStart(&SD1, NULL);
     stdout = (BaseSequentialStream *) &SD1;

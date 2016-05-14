@@ -65,7 +65,8 @@ static void nrf_setup_ptx(nrf24l01p_t *dev)
         NRF_INTERRUPT_EVENT, EXTI_EVENT_NRF_IRQ);
 }
 
-static const uint32_t magic_value = 0xDEAD;
+static const uint32_t stop_magic_value = 0xDEAD;
+static const uint32_t reboot_magic_value = 0x2A2A;
 
 static THD_FUNCTION(radio_thread_tx, arg)
 {
@@ -75,13 +76,20 @@ static THD_FUNCTION(radio_thread_tx, arg)
 
     size_t len;
     static uint8_t packet[32];
+    bool button_was_pressed = false;
     while (1) {
         if (palReadPad(GPIOA, GPIOA_PIN0) != 0) {
             // Button pressed
-            memcpy(packet, &magic_value, 4);
+            memcpy(packet, &stop_magic_value, 4);
             palSetPad(GPIOB, GPIOB_LED);
+            button_was_pressed = true;
         } else {
-            memset(packet, 0, 4);
+            if (button_was_pressed) {
+                memcpy(packet, &reboot_magic_value, 4);
+            } else {
+                memset(packet, 0, 4);
+            }
+            button_was_pressed = false;
             palClearPad(GPIOB, GPIOB_LED);
         }
         // clear interrupts
@@ -160,6 +168,7 @@ void _sd_send_fn(void *arg, const void *p, size_t len)
 }
 
 extern void emergency_stop(void);
+extern void reboot_all(void);
 
 static THD_FUNCTION(radio_thread_rx, arg)
 {
@@ -186,9 +195,11 @@ static THD_FUNCTION(radio_thread_rx, arg)
             }
             nrf24l01p_read_rx_payload(nrf, packet, len);
 
-            if (len == 4 && memcmp(packet, &magic_value, 4) == 0) {
+            if (len == 4 && memcmp(packet, &stop_magic_value, 4) == 0) {
                 palSetPad(GPIOB, GPIOB_LED);
                 emergency_stop();
+            } else if (len == 4 && memcmp(packet, &reboot_magic_value, 4) == 0) {
+                reboot_all();
             } else {
                 palClearPad(GPIOB, GPIOB_LED);
             }
