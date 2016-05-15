@@ -76,20 +76,17 @@ static THD_FUNCTION(radio_thread_tx, arg)
 
     size_t len;
     static uint8_t packet[32];
-    bool button_was_pressed = false;
     while (1) {
         if (palReadPad(GPIOA, GPIOA_PIN0) != 0) {
             // Button pressed
             memcpy(packet, &stop_magic_value, 4);
             palSetPad(GPIOB, GPIOB_LED);
-            button_was_pressed = true;
         } else {
-            if (button_was_pressed) {
+            if (palReadPad(GPIOA, GPIOA_PIN1) != 0) {
                 memcpy(packet, &reboot_magic_value, 4);
             } else {
                 memset(packet, 0, 4);
             }
-            button_was_pressed = false;
             palClearPad(GPIOB, GPIOB_LED);
         }
         // clear interrupts
